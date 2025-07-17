@@ -1,52 +1,48 @@
 // app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import prisma from "@/lib/prisma"
+import bcrypt from "bcrypt"
 
 const handler = NextAuth({
+  adapter: PrismaAdapter(prisma),
+  session: {
+    strategy: "jwt",
+  },
   providers: [
-    // 🔹 Connexion via Google
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-
-    // 🔸 Connexion classique (email + mot de passe)
     CredentialsProvider({
-      name: "Identifiants classiques",
+      name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Mot de passe", type: "password" },
+        email: {},
+        password: {},
       },
-      async authorize(credentials, req) {
-        // Remplace cette partie par ta logique de vérification en base de données
-        const user = {
-          id: "1",
-          name: "Jean Dupont",
-          email: "jean@example.com",
+      async authorize(credentials) {
+        if (!credentials || !credentials.email || !credentials.password) {
+          throw new Error("Email and password are required");
+        }
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
+        if (!user || !(await bcrypt.compare(credentials.password, user.password))) {
+          throw new Error("Invalid email or password");
         }
 
-        if (
-          credentials?.email === "jean@example.com" &&
-          credentials?.password === "123456"
-        ) {
-          return user
-        }
-
-        return null
+        // Return user object with id as string and without password
+        return {
+          id: user.id.toString(),
+          name: user.name,
+          username: user.username,
+          profession: user.profession,
+          email: user.email,
+        };
       },
     }),
   ],
-
-  session: {
-    strategy: "jwt", // recommandé pour Credentials
-  },
-
   pages: {
-    signIn: "/auth/signin", // page personnalisée si tu veux
+    signIn: "/signin",
   },
-
-  secret: process.env.NEXTAUTH_SECRET,
 })
 
 export { handler as GET, handler as POST }

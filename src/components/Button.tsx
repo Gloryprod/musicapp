@@ -6,7 +6,9 @@ type ButtonProps = {
   variant?: "primary" | "secondary";
   size?: "sm" | "md" | "lg";
   className?: string;
+  type?: "button" | "submit" | "reset";
 };
+
 export default function Button({ 
   children, 
   variant = "primary", 
